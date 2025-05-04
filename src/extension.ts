@@ -2,6 +2,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import simpleGit, { SimpleGit } from 'simple-git';
+import * as https from 'https';
 
 interface CommitInfo {
   hash: string;
@@ -16,6 +17,17 @@ interface NonReleaseCommit {
   message: string;
   author: string;
   pattern: string;
+  isPrCommit: boolean;
+}
+
+interface PrCommit {
+  sha: string;
+  commit: {
+    message: string;
+  };
+  author: {
+    login: string;
+  };
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -27,7 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
         prompt: 'リリース対象のプルリクエストURLを入力してください',
         placeHolder: 'https://github.com/owner/repo/pull/123',
         ignoreFocusOut: true,
-        validateInput: (value) => {
+        validateInput: (value: string) => {
           if (!value) {
             return 'URLを入力してください';
           }
@@ -77,17 +89,51 @@ export function activate(context: vscode.ExtensionContext) {
       
       const nonReleaseCommits: NonReleaseCommit[] = [];
       
+      const prUrlRegex = /https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/;
+      const prUrlMatch = prUrl.match(prUrlRegex);
+      
+      if (!prUrlMatch) {
+        vscode.window.showErrorMessage('プルリクエストURLの形式が正しくありません。');
+        return;
+      }
+      
+      const [, owner, repo, prNumber] = prUrlMatch;
+      
+      const prCommits = await getPrCommits(owner, repo, prNumber);
+      
+      if (!prCommits) {
+        vscode.window.showErrorMessage('プルリクエストのコミット情報の取得に失敗しました。');
+        return;
+      }
+      
+      const prCommitHashes = new Set(prCommits.map(commit => commit.sha));
+      
       for (const commit of logResult.all) {
-        for (const pattern of excludePatterns) {
-          if (commit.message.includes(pattern)) {
-            nonReleaseCommits.push({
-              hash: commit.hash,
-              message: commit.message,
-              author: `${commit.author_name} <${commit.author_email}>`,
-              pattern: pattern
-            });
+        let isNonReleaseCommit = false;
+        let pattern = '';
+        
+        for (const excludePattern of excludePatterns) {
+          if (commit.message.includes(excludePattern)) {
+            isNonReleaseCommit = true;
+            pattern = excludePattern;
             break;
           }
+        }
+        
+        const isPrCommit = prCommitHashes.has(commit.hash);
+        if (!isPrCommit) {
+          isNonReleaseCommit = true;
+          pattern = pattern || 'PR外のコミット';
+        }
+        
+        if (isNonReleaseCommit) {
+          nonReleaseCommits.push({
+            hash: commit.hash,
+            message: commit.message,
+            author: `${commit.author_name} <${commit.author_email}>`,
+            pattern: pattern,
+            isPrCommit: isPrCommit
+          });
         }
       }
       
@@ -121,6 +167,7 @@ function getWebviewContent(nonReleaseCommits: NonReleaseCommit[], sourceBranch: 
         </div>
         <div class="commit-message">${escapeHtml(commit.message)}</div>
         <div class="commit-pattern">検出パターン: "${commit.pattern}"</div>
+        ${!commit.isPrCommit ? '<div class="commit-warning">警告: このコミットは指定されたプルリクエストに含まれていません</div>' : ''}
       </div>
     `;
   }).join('');
@@ -178,6 +225,15 @@ function getWebviewContent(nonReleaseCommits: NonReleaseCommit[], sourceBranch: 
         font-size: 0.9em;
         color: #e74c3c;
       }
+      .commit-warning {
+        font-size: 0.9em;
+        color: #e74c3c;
+        font-weight: bold;
+        margin-top: 5px;
+        padding: 3px 6px;
+        background-color: #ffecec;
+        border-left: 3px solid #e74c3c;
+      }
     </style>
   </head>
   <body>
@@ -203,6 +259,47 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+async function getPrCommits(owner: string, repo: string, prNumber: string): Promise<PrCommit[]> {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.github.com',
+      path: `/repos/${owner}/${repo}/pulls/${prNumber}/commits`,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'VSCode-Release-Check-Extension',
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    };
+
+    const req = https.request(options, (res: any) => {
+      let data = '';
+
+      res.on('data', (chunk: any) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          try {
+            const commits = JSON.parse(data);
+            resolve(commits);
+          } catch (error) {
+            reject(error);
+          }
+        } else {
+          reject(new Error(`GitHub API returned status code ${res.statusCode}`));
+        }
+      });
+    });
+
+    req.on('error', (error: Error) => {
+      reject(error);
+    });
+
+    req.end();
+  });
 }
 
 export function deactivate() {}
