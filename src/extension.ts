@@ -128,6 +128,13 @@ export function activate(context: vscode.ExtensionContext) {
       console.log('PR commits:', Array.from(prCommitHashes));
       
       for (const commit of logResult.all) {
+        const isMergeCommit = commit.message.startsWith('Merge pull request') || 
+                             commit.message.startsWith('Merge branch');
+        
+        if (isMergeCommit) {
+          continue;
+        }
+        
         let isNonReleaseCommit = false;
         let pattern = '';
         
