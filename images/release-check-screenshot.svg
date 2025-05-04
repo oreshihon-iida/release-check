@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
+  <rect width="800" height="500" fill="#f5f5f5"/>
+  <rect x="50" y="50" width="700" height="400" fill="#ffffff" stroke="#cccccc" stroke-width="1"/>
+  <rect x="50" y="50" width="700" height="40" fill="#007acc"/>
+  <text x="70" y="75" font-family="Arial" font-size="16" fill="#ffffff">リリース対象外コミット検出結果</text>
+  <rect x="70" y="110" width="660" height="60" fill="#f0f7ff" stroke="#3498db" stroke-width="1"/>
+  <text x="90" y="135" font-family="Arial" font-size="14" fill="#333333">プルリクエスト: https://github.com/oreshihon-iida/release-check/pull/1</text>
+  <text x="90" y="155" font-family="Arial" font-size="14" fill="#333333">ブランチ比較: develop → main</text>
+  <text x="70" y="200" font-family="Arial" font-size="16" fill="#e74c3c" font-weight="bold">警告: 2件のリリース対象外コミットが検出されました。</text>
+  <rect x="70" y="220" width="660" height="80" fill="#f9f9f9" stroke="#dddddd" stroke-width="1"/>
+  <text x="90" y="245" font-family="Arial" font-size="14" fill="#3498db" font-family="monospace">a1b2c3d</text>
+  <text x="550" y="245" font-family="Arial" font-size="12" fill="#7f8c8d">山田太郎 &lt;yamada@example.com&gt;</text>
+  <text x="90" y="270" font-family="Arial" font-size="14" fill="#333333">WIP: ログイン機能の実装</text>
+  <text x="90" y="290" font-family="Arial" font-size="12" fill="#e74c3c">検出パターン: "WIP"</text>
+  <rect x="70" y="320" width="660" height="80" fill="#f9f9f9" stroke="#dddddd" stroke-width="1"/>
+  <text x="90" y="345" font-family="Arial" font-size="14" fill="#3498db" font-family="monospace">e5f6g7h</text>
+  <text x="550" y="345" font-family="Arial" font-size="12" fill="#7f8c8d">佐藤花子 &lt;sato@example.com&gt;</text>
+  <text x="90" y="370" font-family="Arial" font-size="14" fill="#333333">NOT FOR RELEASE: テスト用コードの追加</text>
+  <text x="90" y="390" font-family="Arial" font-size="12" fill="#e74c3c">検出パターン: "NOT FOR RELEASE"</text>
+</svg>
