@@ -124,6 +124,9 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
       
+      console.log('Branch commits:', logResult.all.map(c => c.hash));
+      console.log('PR commits:', Array.from(prCommitHashes));
+      
       for (const commit of logResult.all) {
         let isNonReleaseCommit = false;
         let pattern = '';
@@ -136,7 +139,10 @@ export function activate(context: vscode.ExtensionContext) {
           }
         }
         
-        const isPrCommit = prCommitHashes.has(commit.hash);
+        const isPrCommit = Array.from(prCommitHashes).some(prHash => 
+          prHash.toLowerCase() === commit.hash.toLowerCase()
+        );
+        
         if (!isPrCommit) {
           isNonReleaseCommit = true;
           pattern = pattern || 'PR外のコミット';
