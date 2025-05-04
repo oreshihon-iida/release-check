@@ -35,24 +35,30 @@ export function activate(context: vscode.ExtensionContext) {
 
   const disposable = vscode.commands.registerCommand('release-check.checkReleaseCommits', async () => {
     try {
-      const prUrl = await vscode.window.showInputBox({
-        prompt: 'リリース対象のプルリクエストURLを入力してください',
-        placeHolder: 'https://github.com/owner/repo/pull/123',
+      const prUrlsInput = await vscode.window.showInputBox({
+        prompt: 'リリース対象のプルリクエストURLを入力してください（複数の場合はカンマ区切り）',
+        placeHolder: 'https://github.com/owner/repo/pull/123, https://github.com/owner/repo/pull/456',
         ignoreFocusOut: true,
         validateInput: (value: string) => {
           if (!value) {
             return 'URLを入力してください';
           }
-          if (!value.includes('pull') && !value.includes('PR')) {
-            return 'プルリクエストのURLを入力してください';
+          
+          const urls = value.split(',').map(url => url.trim());
+          for (const url of urls) {
+            if (!url.includes('pull') && !url.includes('PR')) {
+              return `無効なURL: ${url} - プルリクエストのURLを入力してください`;
+            }
           }
           return null;
         }
       });
 
-      if (!prUrl) {
+      if (!prUrlsInput) {
         return;
       }
+      
+      const prUrls = prUrlsInput.split(',').map((url: string) => url.trim());
 
       const workspaceFolders = vscode.workspace.workspaceFolders;
       if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -89,24 +95,34 @@ export function activate(context: vscode.ExtensionContext) {
       
       const nonReleaseCommits: NonReleaseCommit[] = [];
       
-      const prUrlRegex = /https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/;
-      const prUrlMatch = prUrl.match(prUrlRegex);
+      const prCommitHashes = new Set<string>();
       
-      if (!prUrlMatch) {
-        vscode.window.showErrorMessage('プルリクエストURLの形式が正しくありません。');
-        return;
+      for (const prUrl of prUrls) {
+        const prUrlRegex = /https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/;
+        const prUrlMatch = prUrl.match(prUrlRegex);
+        
+        if (!prUrlMatch) {
+          vscode.window.showErrorMessage(`無効なプルリクエストURL: ${prUrl}`);
+          continue;
+        }
+        
+        const [, owner, repo, prNumber] = prUrlMatch;
+        
+        try {
+          const prCommits = await getPrCommits(owner, repo, prNumber);
+          
+          if (prCommits && prCommits.length > 0) {
+            prCommits.forEach(commit => prCommitHashes.add(commit.sha));
+          }
+        } catch (error) {
+          vscode.window.showWarningMessage(`PR ${prUrl} のコミット情報取得に失敗しました: ${error}`);
+        }
       }
       
-      const [, owner, repo, prNumber] = prUrlMatch;
-      
-      const prCommits = await getPrCommits(owner, repo, prNumber);
-      
-      if (!prCommits) {
-        vscode.window.showErrorMessage('プルリクエストのコミット情報の取得に失敗しました。');
+      if (prCommitHashes.size === 0) {
+        vscode.window.showErrorMessage('有効なプルリクエストのコミット情報を取得できませんでした。');
         return;
       }
-      
-      const prCommitHashes = new Set(prCommits.map(commit => commit.sha));
       
       for (const commit of logResult.all) {
         let isNonReleaseCommit = false;
@@ -147,7 +163,7 @@ export function activate(context: vscode.ExtensionContext) {
           { enableScripts: true }
         );
         
-        panel.webview.html = getWebviewContent(nonReleaseCommits, sourceBranch, targetBranch, prUrl);
+        panel.webview.html = getWebviewContent(nonReleaseCommits, sourceBranch, targetBranch, prUrls);
       }
     } catch (error) {
       vscode.window.showErrorMessage(`エラーが発生しました: ${error}`);
@@ -157,7 +173,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(disposable);
 }
 
-function getWebviewContent(nonReleaseCommits: NonReleaseCommit[], sourceBranch: string, targetBranch: string, prUrl: string): string {
+function getWebviewContent(nonReleaseCommits: NonReleaseCommit[], sourceBranch: string, targetBranch: string, prUrls: string[]): string {
   const commitList = nonReleaseCommits.map(commit => {
     return `
       <div class="commit">
@@ -171,6 +187,8 @@ function getWebviewContent(nonReleaseCommits: NonReleaseCommit[], sourceBranch: 
       </div>
     `;
   }).join('');
+  
+  const prUrlsList = prUrls.map(url => `<li><a href="${escapeHtml(url)}" target="_blank">${escapeHtml(url)}</a></li>`).join('');
   
   return `<!DOCTYPE html>
   <html lang="ja">
@@ -240,7 +258,10 @@ function getWebviewContent(nonReleaseCommits: NonReleaseCommit[], sourceBranch: 
     <div class="header">
       <h2>リリース対象外コミット検出結果</h2>
       <div class="pr-info">
-        <p><strong>プルリクエスト:</strong> <a href="${escapeHtml(prUrl)}" target="_blank">${escapeHtml(prUrl)}</a></p>
+        <p><strong>プルリクエスト:</strong></p>
+        <ul>
+          ${prUrlsList}
+        </ul>
       </div>
       <p>ブランチ比較: <strong>${sourceBranch}</strong> → <strong>${targetBranch}</strong></p>
       <p class="warning">警告: ${nonReleaseCommits.length}件のリリース対象外コミットが検出されました。</p>
