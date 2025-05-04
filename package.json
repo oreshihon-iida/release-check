@@ -1,0 +1,70 @@
+{
+  "name": "release-check",
+  "displayName": "release-check",
+  "description": "Compare develop and main branches to check for non-release commits",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:release-check.checkReleaseCommits"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "release-check.checkReleaseCommits",
+        "title": "リリース対象外コミットのチェック"
+      }
+    ],
+    "configuration": {
+      "title": "Release Check",
+      "properties": {
+        "release-check.sourceBranch": {
+          "type": "string",
+          "default": "develop",
+          "description": "比較元のブランチ名"
+        },
+        "release-check.targetBranch": {
+          "type": "string",
+          "default": "main",
+          "description": "比較先のブランチ名"
+        },
+        "release-check.excludePatterns": {
+          "type": "array",
+          "default": [
+            "WIP",
+            "DO NOT MERGE",
+            "NOT FOR RELEASE"
+          ],
+          "description": "リリース対象外と判断するコミットメッセージのパターン"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.99.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.25.1",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "simple-git": "^3.27.0"
+  }
+}
